@@ -8,8 +8,10 @@ import androidx.fragment.app.FragmentActivity;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.AlertDialog;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -34,9 +36,11 @@ import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
+import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.vertechxa.earthquake.activities.QuakesListActivity;
 import com.vertechxa.earthquake.model.EarthQuake;
 import com.vertechxa.earthquake.ui.CustomInfoWindow;
 import com.vertechxa.earthquake.util.Constants;
@@ -58,6 +62,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private AlertDialog.Builder dialogBuilder;
     private AlertDialog dialog;
     private BitmapDescriptor[] iconColors;
+    private Button showListBtn;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -69,7 +74,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
 
-        iconColors = new BitmapDescriptor[] {
+        showListBtn = (Button) findViewById(R.id.showListBtn);
+
+        showListBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(MapsActivity.this, QuakesListActivity.class));
+            }
+        });
+
+        iconColors = new BitmapDescriptor[]{
                 BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE),
                 BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_CYAN),
                 BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW),
@@ -82,6 +96,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_VIOLET)
         };
 
+
         queue = Volley.newRequestQueue(this);
 
         getEarthQuakes();
@@ -89,11 +104,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     private void getEarthQuakes() {
 
-        final EarthQuake earthQuake = new EarthQuake();
-
         JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(Request.Method.GET, Constants.URL, new Response.Listener<JSONObject>() {
             @Override
             public void onResponse(JSONObject response) {
+                EarthQuake earthQuake = new EarthQuake();
                 try {
                     JSONArray features = response.getJSONArray("features");
                     for (int i = 0; i < Constants.LIMIT; i++) {
@@ -116,6 +130,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         earthQuake.setTime(properties.getLong("time"));
                         earthQuake.setMagnitude(properties.getDouble("mag"));
                         earthQuake.setDetailLink(properties.getString("detail"));
+                        earthQuake.setLat(lat);
+                        earthQuake.setLon(lon);
 
                         java.text.DateFormat dateFormat = java.text.DateFormat.getDateInstance();
                         String formattedDate = dateFormat.format(new Date(Long.valueOf(properties.getLong("time"))).getTime());
@@ -127,7 +143,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         markerOptions.snippet("Magnitude: " + earthQuake.getMagnitude() + "\n" +
                                 "Date: " + formattedDate);
 
-                        // Add circle
+                        // Add circle to marker that have mag > x
+                        if (earthQuake.getMagnitude() >= 2.0) {
+                            CircleOptions circleOptions = new CircleOptions();
+                            circleOptions.center(new LatLng(earthQuake.getLat(), earthQuake.getLon()));
+                            circleOptions.radius(30000);
+                            circleOptions.strokeColor(Color.RED);
+                            markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
+
+                            mMap.addCircle(circleOptions);
+                        }
 
                         Marker marker = mMap.addMarker(markerOptions);
                         marker.setTag(earthQuake.getDetailLink());
@@ -286,9 +311,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 StringBuilder stringBuilder = new StringBuilder();
 
                 try {
-                    if(response.has("tectonicSummary") && response.getString("tectonicSummary") != null) {
-                        JSONObject tectonic  = response.getJSONObject("tectonicSummary");
-                        if(tectonic.has("text") && tectonic.getString("text") != null){
+                    if (response.has("tectonicSummary") && response.getString("tectonicSummary") != null) {
+                        JSONObject tectonic = response.getJSONObject("tectonicSummary");
+                        if (tectonic.has("text") && tectonic.getString("text") != null) {
                             String text = tectonic.getString("text");
 
                             htmlPop.loadDataWithBaseURL(null, text, "text/html", "UTF-8", null);
